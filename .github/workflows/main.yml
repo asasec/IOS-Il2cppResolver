@@ -1,0 +1,65 @@
+name: Build Mod Menu
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Theos, SDKs, ldid & dpkg
+      run: |
+        # Gerekli imzalama ve paketleme araçlarını kur
+        brew install ldid dpkg
+        
+        # Theos kurulumu
+        git clone --recursive https://github.com/theos/theos.git ~/theos
+        echo "THEOS=~/theos" >> $GITHUB_ENV
+        
+        # SDK indir
+        rm -rf ~/theos/sdks
+        git clone --depth=1 https://github.com/theos/sdks.git ~/theos/sdks
+
+    - name: Find Makefile and Build
+      run: |
+        export THEOS=~/theos
+        
+        MAKE_DIR=$(find . -maxdepth 3 -name "Makefile" -exec dirname {} \; | head -n 1)
+        
+        if [ -n "$MAKE_DIR" ]; then
+          cd "$MAKE_DIR"
+          
+          # 10.x gibi eski SDK'ları eleyerek en güncel sürümü seç
+          LATEST_SDK=$(ls ~/theos/sdks | grep iPhoneOS | grep -v "10\." | sort -V | tail -n 1 | sed 's/iPhoneOS//' | sed 's/\.sdk//')
+          
+          # Eğer uygun SDK bulunamazsa güvenli bir varsayılan ata
+          if [ -z "$LATEST_SDK" ]; then
+            LATEST_SDK="14.5"
+          fi
+
+          echo "Kullanılan SDK Sürümü: $LATEST_SDK"
+          
+          make package FINALPACKAGE=1 TARGET=iphone:clang:$LATEST_SDK:14.0 || make FINALPACKAGE=1 TARGET=iphone:clang:$LATEST_SDK:14.0 || make
+          
+          # Çıkan gizli .dylib ve .deb dosyalarını dışarıya kopyala
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          find . -name "*.dylib" -exec cp {} "$GITHUB_WORKSPACE/output/" \;
+          find . -name "*.deb" -exec cp {} "$GITHUB_WORKSPACE/output/" \;
+        else
+          echo "Makefile bulunamadı!"
+          exit 1
+        fi
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: iOS-Mod-Menu-Output
+        path: output/
