@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
+#include <mach-o/dyld.h>
+#include <mach-o-loader.h> // veya mach-o/loader.h
+
 class MemoryInfo
 {
 public:
@@ -10,9 +15,9 @@ public:
 };
 
 // Credit KittyMemory
-MemoryInfo getBaseAddress(const std::string &fileName)
+inline MemoryInfo getBaseAddress(const std::string &fileName)
 {
-    MemoryInfo _info;
+    MemoryInfo _info = {0, nullptr, nullptr, 0};
 
     const uint32_t imageCount = _dyld_image_count();
 
