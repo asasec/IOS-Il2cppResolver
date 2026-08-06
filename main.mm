@@ -69,7 +69,6 @@ void ExecuteIl2CppDump() {
         return;
     }
 
-    // Fonksiyon pointer'larını uygun imzalarla cast ediyoruz
     DomainGet_t f_DomainGet = (DomainGet_t)Functions.m_DomainGet;
     DomainGetAssemblies_t f_DomainGetAssemblies = (DomainGetAssemblies_t)Functions.m_DomainGetAssemblies;
     AssembliesGetImage_t f_AssembliesGetImage = (AssembliesGetImage_t)Functions.m_AssembliesGetImage;
@@ -111,9 +110,10 @@ void ExecuteIl2CppDump() {
             void* klass = f_ImageGetClass(image, j);
             if (!klass) continue;
             
-            Il2CppClass* il2cppKlass = static_cast<Il2CppClass*>(klass);
-            const char* className = il2cpp_class_get_name(il2cppKlass);
-            const char* classNamespace = il2cpp_class_get_namespace(il2cppKlass);
+            // IL2CPP_Resolver yapılarına uygun cast işlemi
+            Unity::il2cppClass* il2cppKlass = static_cast<Unity::il2cppClass*>(klass);
+            const char* className = il2cppKlass->m_Name;
+            const char* classNamespace = il2cppKlass->m_Namespaze;
             
             dumpFile << "\n  Class: " << (classNamespace && classNamespace[0] ? classNamespace : "") << "." << (className ? className : "Unknown") << "\n";
 
@@ -122,9 +122,9 @@ void ExecuteIl2CppDump() {
                 if (!method) continue;
                 totalMethods++;
 
-                const MethodInfo* methodInfo = static_cast<const MethodInfo*>(method);
-                const char* methodName = il2cpp_method_get_name(methodInfo);
-                void* methodPointer = methodInfo->methodPointer;
+                Unity::MethodInfo* methodInfo = static_cast<Unity::MethodInfo*>(method);
+                const char* methodName = methodInfo->m_Name;
+                void* methodPointer = methodInfo->m_MethodPointer;
                 
                 uint64_t relativeOffset = 0;
                 if (methodPointer && Globals.m_GameFramework) {
