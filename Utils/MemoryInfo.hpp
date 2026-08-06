@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <mach-o/dyld.h>
-#include <mach-o-loader.h> // veya mach-o/loader.h
+#include <mach-o/loader.h> // veya mach-o/loader.h
 
 class MemoryInfo
 {
