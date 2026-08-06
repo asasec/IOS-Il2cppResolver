@@ -1,9 +1,7 @@
 #import <UIKit/UIKit.h>
-#import "MemoryPatch.h"
 #include "Il2CppResolver.hpp"
 #include <fstream>
 
-// Dump işlemini ve dosyaya yazmayı arka planda gerçekleştirecek fonksiyon
 void ExecuteIl2CppDump() {
     if (!Globals.m_GameFramework) {
         dispatch_async(dispatch_get_main_async(), ^{
@@ -12,7 +10,6 @@ void ExecuteIl2CppDump() {
         return;
     }
 
-    // iOS Documents dizinini bul
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *documentsDirectory = [paths firstObject];
     NSString *filePath = [documentsDirectory stringByAppendingPathComponent:@"il2cpp_dump.txt"];
@@ -105,7 +102,6 @@ void ExecuteIl2CppDump() {
     if (self) {
         self.backgroundColor = [UIColor clearColor];
         
-        // --- Ana Mod Menü Penceresi (Boyut dump butonuna göre optimize edildi) ---
         self.menuWindow = [[UIView alloc] initWithFrame:CGRectMake(50, 80, 270, 110)];
         self.menuWindow.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.10 alpha:0.97];
         self.menuWindow.layer.cornerRadius = 16.0;
@@ -122,7 +118,6 @@ void ExecuteIl2CppDump() {
         UIPanGestureRecognizer *menuPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleMenuPan:)];
         [self.menuWindow addGestureRecognizer:menuPan];
 
-        // --- Başlık Çubuğu ---
         UIView *titleBar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 270, 40)];
         titleBar.backgroundColor = [UIColor colorWithRed:0.14 green:0.17 blue:0.22 alpha:1.0];
         
@@ -138,7 +133,6 @@ void ExecuteIl2CppDump() {
         titleLabel.font = [UIFont boldSystemFontOfSize:13];
         [titleBar addSubview:titleLabel];
 
-        // Kapatma / Küçültme [X] Butonu
         UIButton *closeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
         closeBtn.frame = CGRectMake(230, 8, 24, 24);
         [closeBtn setTitle:@"✕" forState:UIControlStateNormal];
@@ -147,7 +141,6 @@ void ExecuteIl2CppDump() {
         [closeBtn addTarget:self action:@selector(minimizeMenu) forControlEvents:UIControlEventTouchUpInside];
         [titleBar addSubview:closeBtn];
 
-        // --- Özellik: IL2CPP Dump Butonu ---
         self.dumpButton = [UIButton buttonWithType:UIButtonTypeSystem];
         self.dumpButton.frame = CGRectMake(18, 56, 234, 38);
         self.dumpButton.backgroundColor = [UIColor colorWithRed:0.20 green:0.60 blue:1.00 alpha:1.0];
@@ -158,7 +151,6 @@ void ExecuteIl2CppDump() {
         [self.dumpButton addTarget:self action:@selector(dumpButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
         [self.menuWindow addSubview:self.dumpButton];
 
-        // --- Yüzen Ayı Simgesi ---
         self.floatingIcon = [UIButton buttonWithType:UIButtonTypeSystem];
         self.floatingIcon.frame = CGRectMake(40, 100, 54, 54);
         self.floatingIcon.backgroundColor = [UIColor colorWithRed:0.10 green:0.10 blue:0.13 alpha:0.92];
@@ -217,8 +209,6 @@ void ExecuteIl2CppDump() {
 
 - (void)dumpButtonTapped:(UIButton *)sender {
     showNativeAlert(@"IL2CPP Dump", @"Dump işlemi başlatıldı, dosyaya yazılıyor...");
-    
-    // UI donmalarını engellemek için arka planda çalıştırıyoruz
     std::thread(ExecuteIl2CppDump).detach();
 }
 
