@@ -1,5 +1,5 @@
 #import <UIKit/UIKit.h>
-#include "Il2CppResolver.hpp"
+#include "IL2CPP_Resolver.hpp"
 #include <fstream>
 
 void ExecuteIl2CppDump() {
