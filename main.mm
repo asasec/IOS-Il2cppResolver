@@ -5,12 +5,36 @@
 
 using namespace IL2CPP;
 
-// Yardımcı alert fonksiyonu (Eğer tanımlı değilse)
+// Tip Tanımları (Resolver içerisindeki fonksiyon imzaları için)
+typedef void* (*DomainGet_t)();
+typedef void** (*DomainGetAssemblies_t)(void* domain, size_t* size);
+typedef void* (*AssembliesGetImage_t)(void* assembly);
+typedef const char* (*ImageGetName_t)(void* image);
+typedef int (*ImageGetClassCount_t)(void* image);
+typedef void* (*ImageGetClass_t)(void* image, int index);
+typedef void* (*ClassGetMethods_t)(void* klass, void** iter);
+
 void showNativeAlert(NSString *title, NSString *message) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"Tamam" style:UIAlertActionStyleDefault handler:nil]];
-        UIWindow *window = [[UIApplication sharedApplication] keyWindow];
+        
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive) {
+                    for (UIWindow *win in scene.windows) {
+                        if (win.isKeyWindow) {
+                            window = win;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!window) {
+            window = [UIApplication sharedApplication].windows.firstObject;
+        }
         [window.rootViewController presentViewController:alert animated:YES completion:nil];
     });
 }
@@ -37,7 +61,6 @@ void ExecuteIl2CppDump() {
 
     dumpFile << "=== IL2CPP Class, Method & Offset Dump ===\n\n";
 
-    size_t size = 0;
     if (!Functions.m_DomainGet || !Functions.m_DomainGetAssemblies) {
         dumpFile.close();
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -46,8 +69,18 @@ void ExecuteIl2CppDump() {
         return;
     }
 
-    void* domain = Functions.m_DomainGet();
-    void** assemblies = Functions.m_DomainGetAssemblies(domain, &size);
+    // Fonksiyon pointer'larını uygun imzalarla cast ediyoruz
+    DomainGet_t f_DomainGet = (DomainGet_t)Functions.m_DomainGet;
+    DomainGetAssemblies_t f_DomainGetAssemblies = (DomainGetAssemblies_t)Functions.m_DomainGetAssemblies;
+    AssembliesGetImage_t f_AssembliesGetImage = (AssembliesGetImage_t)Functions.m_AssembliesGetImage;
+    ImageGetName_t f_ImageGetName = (ImageGetName_t)Functions.m_ImageGetName;
+    ImageGetClassCount_t f_ImageGetClassCount = (ImageGetClassCount_t)Functions.m_ImageGetClassCount;
+    ImageGetClass_t f_ImageGetClass = (ImageGetClass_t)Functions.m_ImageGetClass;
+    ClassGetMethods_t f_ClassGetMethods = (ClassGetMethods_t)Functions.m_ClassGetMethods;
+
+    void* domain = f_DomainGet();
+    size_t size = 0;
+    void** assemblies = f_DomainGetAssemblies(domain, &size);
     if (!assemblies) {
         dumpFile.close();
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -63,11 +96,11 @@ void ExecuteIl2CppDump() {
         void* assembly = assemblies[i];
         if (!assembly) continue;
 
-        void* image = Functions.m_AssembliesGetImage(assembly);
+        void* image = f_AssembliesGetImage(assembly);
         if (!image) continue;
 
-        const char* imageName = Functions.m_ImageGetName(image);
-        int classCount = Functions.m_ImageGetClassCount(image);
+        const char* imageName = f_ImageGetName(image);
+        int classCount = f_ImageGetClassCount(image);
         totalClasses += classCount;
 
         dumpFile << "\n========================================\n";
@@ -75,21 +108,23 @@ void ExecuteIl2CppDump() {
         dumpFile << "========================================\n";
 
         for (int j = 0; j < classCount; ++j) {
-            void* klass = Functions.m_ImageGetClass(image, j);
+            void* klass = f_ImageGetClass(image, j);
             if (!klass) continue;
             
-            const char* className = il2cpp_class_get_name((Il2CppClass*)klass);
-            const char* classNamespace = il2cpp_class_get_namespace((Il2CppClass*)klass);
+            Il2CppClass* il2cppKlass = static_cast<Il2CppClass*>(klass);
+            const char* className = il2cpp_class_get_name(il2cppKlass);
+            const char* classNamespace = il2cpp_class_get_namespace(il2cppKlass);
             
             dumpFile << "\n  Class: " << (classNamespace && classNamespace[0] ? classNamespace : "") << "." << (className ? className : "Unknown") << "\n";
 
             void* iter = nullptr;
-            while (void* method = Functions.m_ClassGetMethods(klass, &iter)) {
+            while (void* method = f_ClassGetMethods(klass, &iter)) {
                 if (!method) continue;
                 totalMethods++;
 
-                const char* methodName = il2cpp_method_get_name((const MethodInfo*)method);
-                void* methodPointer = ((MethodInfo*)method)->methodPointer;
+                const MethodInfo* methodInfo = static_cast<const MethodInfo*>(method);
+                const char* methodName = il2cpp_method_get_name(methodInfo);
+                void* methodPointer = methodInfo->methodPointer;
                 
                 uint64_t relativeOffset = 0;
                 if (methodPointer && Globals.m_GameFramework) {
