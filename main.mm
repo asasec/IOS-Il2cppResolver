@@ -14,6 +14,11 @@ typedef int (*ImageGetClassCount_t)(void* image);
 typedef void* (*ImageGetClass_t)(void* image, int index);
 typedef void* (*ClassGetMethods_t)(void* klass, void** iter);
 
+// IL2CPP Dahili API İmzalari (İsimler ve metot pointer'ları için)
+typedef const char* (*il2cpp_class_get_name_t)(void* klass);
+typedef const char* (*il2cpp_class_get_namespace_t)(void* klass);
+typedef const char* (*il2cpp_method_get_name_t)(void* method);
+
 void showNativeAlert(NSString *title, NSString *message) {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
@@ -77,6 +82,11 @@ void ExecuteIl2CppDump() {
     ImageGetClass_t f_ImageGetClass = (ImageGetClass_t)Functions.m_ImageGetClass;
     ClassGetMethods_t f_ClassGetMethods = (ClassGetMethods_t)Functions.m_ClassGetMethods;
 
+    // Dinamik sembol çözme (il2cpp fonksiyonlarını oyun kütüphanesinden buluyoruz)
+    il2cpp_class_get_name_t f_ClassName = (il2cpp_class_get_name_t)dlsym(Globals.m_GameFramework, "il2cpp_class_get_name");
+    il2cpp_class_get_namespace_t f_ClassNamespace = (il2cpp_class_get_namespace_t)dlsym(Globals.m_GameFramework, "il2cpp_class_get_namespace");
+    il2cpp_method_get_name_t f_MethodName = (il2cpp_method_get_name_t)dlsym(Globals.m_GameFramework, "il2cpp_method_get_name");
+
     void* domain = f_DomainGet();
     size_t size = 0;
     void** assemblies = f_DomainGetAssemblies(domain, &size);
@@ -110,10 +120,8 @@ void ExecuteIl2CppDump() {
             void* klass = f_ImageGetClass(image, j);
             if (!klass) continue;
             
-            // IL2CPP_Resolver yapılarına uygun cast işlemi
-            Unity::il2cppClass* il2cppKlass = static_cast<Unity::il2cppClass*>(klass);
-            const char* className = il2cppKlass->m_Name;
-            const char* classNamespace = il2cppKlass->m_Namespaze;
+            const char* className = f_ClassName ? f_ClassName(klass) : "Unknown";
+            const char* classNamespace = f_ClassNamespace ? f_ClassNamespace(klass) : "";
             
             dumpFile << "\n  Class: " << (classNamespace && classNamespace[0] ? classNamespace : "") << "." << (className ? className : "Unknown") << "\n";
 
@@ -122,9 +130,19 @@ void ExecuteIl2CppDump() {
                 if (!method) continue;
                 totalMethods++;
 
-                Unity::MethodInfo* methodInfo = static_cast<Unity::MethodInfo*>(method);
-                const char* methodName = methodInfo->m_Name;
-                void* methodPointer = methodInfo->m_MethodPointer;
+                const char* methodName = f_MethodName ? f_MethodName(method) : "Unknown";
+                
+                // Metot işaretçisini (pointer) güvenli bir şekilde struct üzerinden alıyoruz
+                struct MethodInfo_Internal {
+                    void* methodPointer;
+                    void* invoker_pointer;
+                    const char* name;
+                    void* klass;
+                    void* return_type;
+                    void* parameters;
+                };
+                
+                void* methodPointer = ((MethodInfo_Internal*)method)->methodPointer;
                 
                 uint64_t relativeOffset = 0;
                 if (methodPointer && Globals.m_GameFramework) {
