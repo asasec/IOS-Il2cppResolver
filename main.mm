@@ -1,10 +1,14 @@
 #import <UIKit/UIKit.h>
 #include "IL2CPP_Resolver.hpp"
 #include <fstream>
+#include <thread>
+
+// Namespace tanımlamasını ekliyoruz
+using namespace IL2CPP;
 
 void ExecuteIl2CppDump() {
     if (!Globals.m_GameFramework) {
-        dispatch_async(dispatch_get_main_async(), ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
             showNativeAlert(@"Hata", @"Oyun modülü henüz yüklenmedi!");
         });
         return;
@@ -16,7 +20,7 @@ void ExecuteIl2CppDump() {
     
     std::ofstream dumpFile([filePath fileSystemRepresentation]);
     if (!dumpFile.is_open()) {
-        dispatch_async(dispatch_get_main_async(), ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
             showNativeAlert(@"Hata", @"Dump dosyası oluşturulamadı!");
         });
         return;
@@ -28,7 +32,7 @@ void ExecuteIl2CppDump() {
     void** assemblies = Functions.m_DomainGetAssemblies(Functions.m_DomainGet(), &size);
     if (!assemblies) {
         dumpFile.close();
-        dispatch_async(dispatch_get_main_async(), ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
             showNativeAlert(@"Dump Hatası", @"Assembly listesi alınamadı!");
         });
         return;
@@ -83,7 +87,7 @@ void ExecuteIl2CppDump() {
 
     dumpFile.close();
 
-    dispatch_async(dispatch_get_main_async(), ^{
+    dispatch_async(dispatch_get_main_queue(), ^{
         NSString *message = [NSString stringWithFormat:@"Dump tamamlandı!\nSınıf: %d | Metot: %d\nKonum: Documents/il2cpp_dump.txt", totalClasses, totalMethods];
         showNativeAlert(@"IL2CPP Dump", message);
     });
