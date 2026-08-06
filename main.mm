@@ -3,8 +3,17 @@
 #include <fstream>
 #include <thread>
 
-// Namespace tanımlamasını ekliyoruz
 using namespace IL2CPP;
+
+// Yardımcı alert fonksiyonu (Eğer tanımlı değilse)
+void showNativeAlert(NSString *title, NSString *message) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Tamam" style:UIAlertActionStyleDefault handler:nil]];
+        UIWindow *window = [[UIApplication sharedApplication] keyWindow];
+        [window.rootViewController presentViewController:alert animated:YES completion:nil];
+    });
+}
 
 void ExecuteIl2CppDump() {
     if (!Globals.m_GameFramework) {
@@ -29,7 +38,16 @@ void ExecuteIl2CppDump() {
     dumpFile << "=== IL2CPP Class, Method & Offset Dump ===\n\n";
 
     size_t size = 0;
-    void** assemblies = Functions.m_DomainGetAssemblies(Functions.m_DomainGet(), &size);
+    if (!Functions.m_DomainGet || !Functions.m_DomainGetAssemblies) {
+        dumpFile.close();
+        dispatch_async(dispatch_get_main_queue(), ^{
+            showNativeAlert(@"Dump Hatası", @"IL2CPP fonksiyonları resolve edilemedi!");
+        });
+        return;
+    }
+
+    void* domain = Functions.m_DomainGet();
+    void** assemblies = Functions.m_DomainGetAssemblies(domain, &size);
     if (!assemblies) {
         dumpFile.close();
         dispatch_async(dispatch_get_main_queue(), ^{
