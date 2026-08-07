@@ -308,11 +308,17 @@ void ExecuteIl2CppDump() {
 
 // Menünün ekranda görünmesini sağlayan otomatik tetikleyici (Constructor)
 __attribute__((constructor)) void initializeDumpMenu() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        // IL2CPP Resolver'ı burada tetikliyoruz (Modül adını oyununa göre "UnityFramework" veya "GameAssembly" olarak değiştirebilirsin)
-        bool initSuccess = IL2CPP::Initialize(true, 30, "UnityFramework");
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(7.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // Önce UnityFramework olarak deneyelim, başarısız olursa GameAssembly veya boş bırakabiliriz
+        bool initSuccess = IL2CPP::Initialize(true, 40, "UnityFramework");
+        
         if (!initSuccess) {
-            showNativeAlert(@"Resolver Hatası", @"IL2CPP Initialize başarısız oldu! Framework bulunamadı veya exportlar çözülemedi.");
+            // Alternatif olarak doğrudan ana process'ten veya GameAssembly üzerinden zorlayalım
+            initSuccess = IL2CPP::Initialize(true, 10, "GameAssembly");
+        }
+
+        if (!initSuccess) {
+            showNativeAlert(@"Resolver Kritik Hata", @"Framework (UnityFramework/GameAssembly) yüklenemedi!");
             return;
         }
 
@@ -340,3 +346,4 @@ __attribute__((constructor)) void initializeDumpMenu() {
         }
     });
 }
+
