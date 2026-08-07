@@ -3,6 +3,7 @@
 #include <fstream>
 #include <thread>
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 
 using namespace IL2CPP;
 
@@ -67,6 +68,8 @@ void shareDumpFile(NSString *filePath) {
         }
         
         UIViewController *rootVC = window.rootViewController;
+        if (!rootVC) return;
+        
         if (activityVC.popoverPresentationController) {
             activityVC.popoverPresentationController.sourceView = rootVC.view;
             activityVC.popoverPresentationController.sourceRect = CGRectMake(rootVC.view.bounds.size.width / 2, rootVC.view.bounds.size.height / 2, 0, 0);
@@ -80,7 +83,7 @@ void ExecuteIl2CppDump() {
     @try {
         if (!Globals.m_GameFramework) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                showNativeAlert(@"Hata", @"Oyun modülü yüklenmedi!");
+                showNativeAlert(@"Olmadı / Hata", @"Oyun modülü (Globals.m_GameFramework) yüklenmedi!");
             });
             return;
         }
@@ -92,7 +95,7 @@ void ExecuteIl2CppDump() {
         std::ofstream dumpFile([filePath UTF8String], std::ios::out | std::ios::trunc);
         if (!dumpFile.is_open()) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                showNativeAlert(@"Kayıt Hatası", [NSString stringWithFormat:@"Documents dizinine yazılamadı:\n%@", filePath]);
+                showNativeAlert(@"Olmadı / Kayıt Hatası", [NSString stringWithFormat:@"Documents dizinine yazılamadı:\n%@", filePath]);
             });
             return;
         }
@@ -111,20 +114,40 @@ void ExecuteIl2CppDump() {
         il2cpp_class_get_namespace_t f_ClassNamespace = (il2cpp_class_get_namespace_t)dlsym(Globals.m_GameFramework, "il2cpp_class_get_namespace");
         il2cpp_method_get_name_t f_MethodName = (il2cpp_method_get_name_t)dlsym(Globals.m_GameFramework, "il2cpp_method_get_name");
 
+        if (!f_DomainGet || !f_DomainGetAssemblies) {
+            dumpFile.close();
+            dispatch_async(dispatch_get_main_queue(), ^{
+                showNativeAlert(@"Olmadı / Hata", @"IL2CPP temel fonksiyonları çözülemedi.");
+            });
+            return;
+        }
+
         void* domain = f_DomainGet();
         size_t size = 0;
         void** assemblies = f_DomainGetAssemblies(domain, &size);
         if (!assemblies || size == 0) {
             dumpFile.close();
             dispatch_async(dispatch_get_main_queue(), ^{
-                showNativeAlert(@"Dump Hatası", @"Assembly listesi alınamadı!");
+                showNativeAlert(@"Olmadı / Hata", @"Assembly listesi boş veya alınamadı!");
             });
             return;
         }
 
         int totalClasses = 0;
         int totalMethods = 0;
-        uint64_t baseAddress = (uint64_t)Globals.m_GameFramework;
+        
+        // UnityFramework binary'sinin tam gerçek slide edilmiş yüklenme adresini dyld üzerinden alıyoruz
+        uint64_t baseAddress = 0;
+        for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+            const char *imageName = _dyld_get_image_name(i);
+            if (imageName && strstr(imageName, "UnityFramework")) {
+                baseAddress = (uint64_t)_dyld_get_image_header(i);
+                break;
+            }
+        }
+        if (baseAddress == 0) {
+            baseAddress = (uint64_t)Globals.m_GameFramework;
+        }
 
         for (size_t i = 0; i < size; ++i) {
             void* assembly = assemblies[i];
@@ -166,9 +189,12 @@ void ExecuteIl2CppDump() {
                         void* parameters;
                     };
                     
-                    uint64_t methodPointer = (uint64_t)((MethodInfo_Internal*)method)->methodPointer;
+                    // Pointer maskelemesini (ARM64 thumb bit temizliği) uyguluyoruz
+                    uint64_t rawPointer = (uint64_t)((MethodInfo_Internal*)method)->methodPointer;
+                    uint64_t methodPointer = rawPointer & ~((uint64_t)1);
+                    
                     uint64_t relativeOffset = 0;
-                    if (methodPointer > baseAddress) {
+                    if (methodPointer >= baseAddress) {
                         relativeOffset = methodPointer - baseAddress;
                     }
 
@@ -182,16 +208,17 @@ void ExecuteIl2CppDump() {
         dumpFile.flush();
         dumpFile.close();
 
+        // İşlem tamamlandı: Oldu mesajı ve Dosyalara Kaydet butonu
         dispatch_async(dispatch_get_main_queue(), ^{
-            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"IL2CPP Dump Bitti"
-                                                                            message:[NSString stringWithFormat:@"Sınıf: %d | Metot: %d\nDosya Documents klasörüne kaydedildi.", totalClasses, totalMethods]
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Oldu (Dump Başarılı)"
+                                                                            message:[NSString stringWithFormat:@"Sınıf: %d | Metot: %d\nDosya Documents dizinine oluşturuldu.", totalClasses, totalMethods]
                                                                      preferredStyle:UIAlertControllerStyleAlert];
             
-            [alert addAction:[UIAlertAction actionWithTitle:@"Dosyalara Kaydet (Paylaş)" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+            [alert addAction:[UIAlertAction actionWithTitle:@"Dosyalara Kaydet" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
                 shareDumpFile(filePath);
             }]];
             
-            [alert addAction:[UIAlertAction actionWithTitle:@"Tamam" style:UIAlertActionStyleCancel handler:nil]];
+            [alert addAction:[UIAlertAction actionWithTitle:@"Kapat" style:UIAlertActionStyleCancel handler:nil]];
             
             UIWindow *window = nil;
             if (@available(iOS 13.0, *)) {
@@ -214,7 +241,7 @@ void ExecuteIl2CppDump() {
     }
     @catch (NSException *exception) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            showNativeAlert(@"Hata", [NSString stringWithFormat:@"Exception: %@", exception.reason]);
+            showNativeAlert(@"Olmadı / Hata", [NSString stringWithFormat:@"Exception: %@", exception.reason]);
         });
     }
 }
@@ -297,7 +324,6 @@ void ExecuteIl2CppDump() {
         [self.floatingIcon addTarget:self action:@selector(restoreMenu) forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:self.floatingIcon];
 
-        // HATA BURADAYDI: @selector:handleIconPan: yerine @selector(handleIconPan:) yapıldı
         UIPanGestureRecognizer *iconPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleIconPan:)];
         [self.floatingIcon addGestureRecognizer:iconPan];
     }
@@ -339,7 +365,7 @@ void ExecuteIl2CppDump() {
 }
 
 - (void)dumpButtonTapped:(UIButton *)sender {
-    showNativeAlert(@"IL2CPP Dump", @"Dump işlemi başlatıldı, arka planda dosyaya yazılıyor...");
+    // "Dump başladı" mesajı kaldırıldı, işlem arka planda sessizce başlayıp bittiğinde bildirim verecek.
     std::thread(ExecuteIl2CppDump).detach();
 }
 
@@ -356,7 +382,7 @@ __attribute__((constructor)) void initializeDumpMenu() {
         }
 
         if (!initSuccess) {
-            showNativeAlert(@"Resolver Hatası", @"UnityFramework yüklenemedi!");
+            showNativeAlert(@"Olmadı / Başlangıç Hatası", @"UnityFramework yüklenemedi!");
             return;
         }
 
