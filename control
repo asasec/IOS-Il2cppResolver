@@ -1,0 +1,9 @@
+Package: com.asasec.il2cppdumpmenu
+Name: Il2CppDumpMenu
+Depends: mobilesubstrate
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: IL2CPP Dump Tweak Menu
+Maintainer: asasec
+Author: asasec
+Section: Tweaks
