@@ -57,10 +57,12 @@ void ExecuteIl2CppDump() {
     NSString *documentsDirectory = [paths firstObject];
     NSString *filePath = [documentsDirectory stringByAppendingPathComponent:@"il2cpp_dump.txt"];
     
-    std::ofstream dumpFile([filePath fileSystemRepresentation]);
+    NSLog(@"IL2CPP Dump Dosya Yolu: %@", filePath);
+
+    std::ofstream dumpFile([filePath UTF8String], std::ios::out | std::ios::trunc);
     if (!dumpFile.is_open()) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            showNativeAlert(@"Hata", @"Dump dosyası oluşturulamadı!");
+            showNativeAlert(@"Kayıt Hatası", [NSString stringWithFormat:@"Dosya açılamadı:\n%@", filePath]);
         });
         return;
     }
@@ -155,11 +157,12 @@ void ExecuteIl2CppDump() {
         }
     }
 
+    dumpFile.flush();
     dumpFile.close();
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSString *message = [NSString stringWithFormat:@"Dump tamamlandı!\nSınıf: %d | Metot: %d\nKonum: Documents/il2cpp_dump.txt", totalClasses, totalMethods];
-        showNativeAlert(@"IL2CPP Dump", message);
+        NSString *message = [NSString stringWithFormat:@"Başarılı!\nSınıf: %d | Metot: %d\nKonum: Documents/il2cpp_dump.txt", totalClasses, totalMethods];
+        showNativeAlert(@"IL2CPP Dump Bitti", message);
     });
 }
 
