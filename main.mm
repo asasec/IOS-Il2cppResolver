@@ -44,7 +44,6 @@ void showNativeAlert(NSString *title, NSString *message) {
     });
 }
 
-// Dosyayı doğrudan iOS Dosyalar uygulamasına kaydetmek için Paylaşım Menüsü (ShareSheet) açar
 void shareDumpFile(NSString *filePath) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURL *fileURL = [NSURL fileURLWithPath:filePath];
@@ -86,7 +85,6 @@ void ExecuteIl2CppDump() {
             return;
         }
 
-        // Documents dizinine kayıt yolu
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
         NSString *documentsDirectory = [paths firstObject];
         NSString *filePath = [documentsDirectory stringByAppendingPathComponent:@"il2cpp_dump.txt"];
@@ -169,8 +167,6 @@ void ExecuteIl2CppDump() {
                     };
                     
                     uint64_t methodPointer = (uint64_t)((MethodInfo_Internal*)method)->methodPointer;
-                    
-                    // Doğru relative offset (ASLR slide çıkarılmış) hesabı
                     uint64_t relativeOffset = 0;
                     if (methodPointer > baseAddress) {
                         relativeOffset = methodPointer - baseAddress;
@@ -186,7 +182,6 @@ void ExecuteIl2CppDump() {
         dumpFile.flush();
         dumpFile.close();
 
-        // İşlem bitince kullanıcıya Dosyalara Kaydet seçeneği sunuyoruz
         dispatch_async(dispatch_get_main_queue(), ^{
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"IL2CPP Dump Bitti"
                                                                             message:[NSString stringWithFormat:@"Sınıf: %d | Metot: %d\nDosya Documents klasörüne kaydedildi.", totalClasses, totalMethods]
@@ -302,7 +297,8 @@ void ExecuteIl2CppDump() {
         [self.floatingIcon addTarget:self action:@selector(restoreMenu) forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:self.floatingIcon];
 
-        UIPanGestureRecognizer *iconPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector:handleIconPan:];
+        // HATA BURADAYDI: @selector:handleIconPan: yerine @selector(handleIconPan:) yapıldı
+        UIPanGestureRecognizer *iconPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleIconPan:)];
         [self.floatingIcon addGestureRecognizer:iconPan];
     }
     return self;
