@@ -53,9 +53,9 @@ void ExecuteIl2CppDump() {
         return;
     }
 
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsDirectory = [paths firstObject];
-    NSString *filePath = [documentsDirectory stringByAppendingPathComponent:@"il2cpp_dump.txt"];
+    // Jailed cihazlarda Documents yerine kesin yazılabilen temporary (tmp) dizinini kullanalım
+    NSString *tmpDirectory = NSTemporaryDirectory();
+    NSString *filePath = [tmpDirectory stringByAppendingPathComponent:@"il2cpp_dump.txt"];
     
     NSLog(@"IL2CPP Dump Dosya Yolu: %@", filePath);
 
@@ -90,12 +90,22 @@ void ExecuteIl2CppDump() {
     il2cpp_method_get_name_t f_MethodName = (il2cpp_method_get_name_t)dlsym(Globals.m_GameFramework, "il2cpp_method_get_name");
 
     void* domain = f_DomainGet();
-    size_t size = 0;
-    void** assemblies = f_DomainGetAssemblies(domain, &size);
-    if (!assemblies) {
+    if (!domain) {
+        dumpFile << "Error: Domain is NULL\n";
         dumpFile.close();
         dispatch_async(dispatch_get_main_queue(), ^{
-            showNativeAlert(@"Dump Hatası", @"Assembly listesi alınamadı!");
+            showNativeAlert(@"Dump Hatası", @"Domain alınamadı (NULL)!");
+        });
+        return;
+    }
+
+    size_t size = 0;
+    void** assemblies = f_DomainGetAssemblies(domain, &size);
+    if (!assemblies || size == 0) {
+        dumpFile << "Error: Assemblies is NULL or size is 0\n";
+        dumpFile.close();
+        dispatch_async(dispatch_get_main_queue(), ^{
+            showNativeAlert(@"Dump Hatası", @"Assembly listesi boş veya alınamadı!");
         });
         return;
     }
@@ -107,11 +117,11 @@ void ExecuteIl2CppDump() {
         void* assembly = assemblies[i];
         if (!assembly) continue;
 
-        void* image = f_AssembliesGetImage(assembly);
+        void* image = f_AssembliesGetImage ? f_AssembliesGetImage(assembly) : nullptr;
         if (!image) continue;
 
-        const char* imageName = f_ImageGetName(image);
-        int classCount = f_ImageGetClassCount(image);
+        const char* imageName = f_ImageGetName ? f_ImageGetName(image) : "Unknown";
+        int classCount = f_ImageGetClassCount ? f_ImageGetClassCount(image) : 0;
         totalClasses += classCount;
 
         dumpFile << "\n========================================\n";
@@ -119,7 +129,7 @@ void ExecuteIl2CppDump() {
         dumpFile << "========================================\n";
 
         for (int j = 0; j < classCount; ++j) {
-            void* klass = f_ImageGetClass(image, j);
+            void* klass = f_ImageGetClass ? f_ImageGetClass(image, j) : nullptr;
             if (!klass) continue;
             
             const char* className = f_ClassName ? f_ClassName(klass) : "Unknown";
@@ -128,7 +138,7 @@ void ExecuteIl2CppDump() {
             dumpFile << "\n  Class: " << (classNamespace && classNamespace[0] ? classNamespace : "") << "." << (className ? className : "Unknown") << "\n";
 
             void* iter = nullptr;
-            while (void* method = f_ClassGetMethods(klass, &iter)) {
+            while (void* method = f_ClassGetMethods ? f_ClassGetMethods(klass, &iter) : nullptr) {
                 if (!method) continue;
                 totalMethods++;
 
@@ -161,7 +171,7 @@ void ExecuteIl2CppDump() {
     dumpFile.close();
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSString *message = [NSString stringWithFormat:@"Başarılı!\nSınıf: %d | Metot: %d\nKonum: Documents/il2cpp_dump.txt", totalClasses, totalMethods];
+        NSString *message = [NSString stringWithFormat:@"Başarılı!\nSınıf: %d | Metot: %d\nKonum: tmp/il2cpp_dump.txt", totalClasses, totalMethods];
         showNativeAlert(@"IL2CPP Dump Bitti", message);
     });
 }
