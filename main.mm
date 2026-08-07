@@ -308,9 +308,18 @@ void ExecuteIl2CppDump() {
 
 // Menünün ekranda görünmesini sağlayan otomatik tetikleyici (Constructor)
 __attribute__((constructor)) void initializeDumpMenu() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(7.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        // Önce UnityFramework olarak deneyelim, başarısız olursa GameAssembly veya boş bırakabiliriz
-        bool initSuccess = IL2CPP::Initialize(true, 40, "UnityFramework");
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+
+        // Uygulamanın ana Frameworks dizinini dinamik olarak alıp UnityFramework yolunu oluşturuyoruz
+NSBundle *bundle = [NSBundle mainBundle];
+NSString *frameworkPath = [[bundle.bundlePath stringByAppendingPathComponent:(@"Frameworks/UnityFramework.framework/UnityFramework")] stringByStandardizingPath];
+
+// Eğer .framework klasörü içinde değil de doğrudan bu dizindeyse:
+// NSString *frameworkPath = [bundle.bundlePath stringByAppendingPathComponent:@"UnityFramework"];
+
+// Şimdi initialize fonksiyonuna bu tam yolu veriyoruz:
+bool initSuccess = IL2CPP::Initialize(true, 40, [frameworkPath UTF8String]);
+
         
         if (!initSuccess) {
             // Alternatif olarak doğrudan ana process'ten veya GameAssembly üzerinden zorlayalım
