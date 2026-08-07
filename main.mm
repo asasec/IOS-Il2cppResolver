@@ -309,6 +309,13 @@ void ExecuteIl2CppDump() {
 // Menünün ekranda görünmesini sağlayan otomatik tetikleyici (Constructor)
 __attribute__((constructor)) void initializeDumpMenu() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        // IL2CPP Resolver'ı burada tetikliyoruz (Modül adını oyununa göre "UnityFramework" veya "GameAssembly" olarak değiştirebilirsin)
+        bool initSuccess = IL2CPP::Initialize(true, 30, "UnityFramework");
+        if (!initSuccess) {
+            showNativeAlert(@"Resolver Hatası", @"IL2CPP Initialize başarısız oldu! Framework bulunamadı veya exportlar çözülemedi.");
+            return;
+        }
+
         UIWindow *window = nil;
         if (@available(iOS 13.0, *)) {
             for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
